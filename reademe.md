@@ -1,4 +1,8 @@
 #### 简单构思下
+做个日志收集系统
+仿造老男孩项目的思路
+elk日志收集：elasticsearch + logstash + kibana
+使用gin，etcd，nsq
 
 ##### 想要使用的技术：
 web框架：gin
