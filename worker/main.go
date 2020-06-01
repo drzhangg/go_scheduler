@@ -1,7 +1,14 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+)
 
 func main() {
-	fmt.Println(123)
+	a := 123
+	b := "123"
+
+	fmt.Println(reflect.ValueOf(a).Type())
+	fmt.Println(reflect.ValueOf(b).Type())
 }
