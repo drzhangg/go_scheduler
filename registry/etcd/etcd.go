@@ -56,7 +56,7 @@ func (e *EtcdRegistry) Init(ctx context.Context, opts ...registry.Option) (err e
 	}
 
 	e.client, err = clientv3.New(clientv3.Config{
-		Endpoints:   e.options.Addr,
+		Endpoints:   e.options.Addrs,
 		DialTimeout: e.options.Timeout,
 	})
 	if err != nil {

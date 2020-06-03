@@ -3,7 +3,7 @@ package registry
 import "time"
 
 type Options struct {
-	Addr         []string      //地址集合
+	Addrs         []string      //地址集合
 	Timeout      time.Duration //超时时间
 	RegistryPath string        //注册地址
 	HeartBeat    int64         //心跳
@@ -13,7 +13,7 @@ type Option func(options *Options)
 
 func WithAddr(adds []string) Option {
 	return func(options *Options) {
-		options.Addr = adds
+		options.Addrs = adds
 	}
 }
 

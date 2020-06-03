@@ -30,16 +30,17 @@ func (p *PluginMgr) registerPlugin(plugin Registry) (err error) {
 	return
 }
 
-func (p *PluginMgr) initRegistry(ctx context.Context, name string, opts ...Option) (registry Registry, err error) {
+func (p *PluginMgr) initRegistry(ctx context.Context, name string,
+	opts ...Option) (registry Registry, err error) {
 	//查找对应的插件是否存在
 	p.lock.Lock()
 	defer p.lock.Unlock()
-
 	plugin, ok := p.plugins[name]
 	if !ok {
-		err = fmt.Errorf("plugin %s not exists", err)
+		err = fmt.Errorf("plugin %s not exists", name)
 		return
 	}
+
 	registry = plugin
 	err = plugin.Init(ctx, opts...)
 	return
