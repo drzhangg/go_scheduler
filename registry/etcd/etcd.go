@@ -99,14 +99,17 @@ func (e *EtcdRegistry) Unregister(ctx context.Context, service *registry.Service
 
 //这个方法不停的从chan中读取数据，将数据通过map形式进行存储
 func (e *EtcdRegistry) run() {
+	ticker := time.NewTicker(MaxSyncServiceInterval)
 	for {
 		select {
 		//从chan中读取数据
 		case service := <-e.serviceChan:
 			fmt.Println("run中的chan：", service)
 			registryService, ok := e.registryServiceMap[service.Name]
+			fmt.Println(ok)
 			//说明存在
 			if ok {
+				fmt.Println("1231231")
 				//将
 				for _, node := range service.Nodes {
 					registryService.service.Nodes = append(registryService.service.Nodes, node)
@@ -119,6 +122,9 @@ func (e *EtcdRegistry) run() {
 				service: service,
 			}
 			e.registryServiceMap[service.Name] = registryService
+		case <-ticker.C:
+			fmt.Println("进入ticker----")
+			e.syncServiceFromEtcd()
 		default:
 			//
 			e.registerOrKeepAlive()
@@ -196,10 +202,9 @@ func (e *EtcdRegistry) servicePath(name string) string {
 
 //服务发现
 func (e *EtcdRegistry) GetService(ctx context.Context, name string) (service *registry.Service, err error) {
-	fmt.Println("进入服务发现")
 	//先从缓存中读取
 	service, ok := e.getServiceFromCache(ctx, name)
-	if !ok {
+	if ok {
 		return
 	}
 
@@ -211,9 +216,10 @@ func (e *EtcdRegistry) GetService(ctx context.Context, name string) (service *re
 	if ok {
 		return
 	}
-	fmt.Println("从etcd中取数据")
+
 	//缓存中没有数据，从etcd中读取
 	key := e.servicePath(name)
+
 	resp, err := e.client.Get(context.TODO(), key, clientv3.WithPrefix())
 	if err != nil {
 		return
@@ -260,4 +266,46 @@ func (e *EtcdRegistry) getServiceFromCache(ctx context.Context, name string) (se
 	allServiceInfo := e.value.Load().(*AllServiceInfo)
 	service, ok = allServiceInfo.serviceMap[name]
 	return
+}
+
+func (e *EtcdRegistry) syncServiceFromEtcd() {
+
+	var allServiceInfoNew = &AllServiceInfo{
+		serviceMap: make(map[string]*registry.Service, MaxServiceNum),
+	}
+
+	ctx := context.TODO()
+	allServiceInfo := e.value.Load().(*AllServiceInfo)
+	fmt.Println("缓存加载----", allServiceInfo.serviceMap["comment_service"])
+
+	//对于缓存的每一个服务，都需要从etcd中进行更新
+	for _, service := range allServiceInfo.serviceMap {
+		key := e.servicePath(service.Name)
+		resp, err := e.client.Get(ctx, key, clientv3.WithPrefix())
+		if err != nil {
+			allServiceInfoNew.serviceMap[service.Name] = service
+			continue
+		}
+
+		serviceNew := &registry.Service{
+			Name: service.Name,
+		}
+
+		for _, kv := range resp.Kvs {
+			value := kv.Value
+			var tmpService registry.Service
+			err = json.Unmarshal(value, &tmpService)
+			if err != nil {
+				fmt.Printf("unmarshal failed, err:%v value:%s", err, string(value))
+				return
+			}
+
+			for _, node := range tmpService.Nodes {
+				serviceNew.Nodes = append(serviceNew.Nodes, node)
+			}
+		}
+		allServiceInfoNew.serviceMap[serviceNew.Name] = serviceNew
+	}
+
+	e.value.Store(allServiceInfoNew)
 }
