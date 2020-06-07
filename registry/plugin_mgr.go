@@ -21,6 +21,7 @@ func (p *PluginMgr) registerPlugin(plugin Registry) (err error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
+	fmt.Println("注册名称：", plugin)
 	_, ok := p.plugins[plugin.Name()]
 	if ok {
 		err = fmt.Errorf("duplicate registry plugin")

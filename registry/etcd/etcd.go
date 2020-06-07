@@ -7,6 +7,8 @@ import (
 	"go.etcd.io/etcd/clientv3"
 	"go_scheduler/registry"
 	"path"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,6 +22,8 @@ type EtcdRegistry struct {
 	client      *clientv3.Client       //etcd客户端
 	serviceChan chan *registry.Service //节点信息
 
+	value              atomic.Value //本地缓存数据
+	lock               sync.Mutex
 	registryServiceMap map[string]*RegistryService //通过map存放节点信息
 }
 
@@ -31,6 +35,11 @@ type RegistryService struct {
 	keepAliveCh <-chan *clientv3.LeaseKeepAliveResponse //续租chan
 }
 
+//通过map缓存数据
+type AllServiceInfo struct {
+	serviceMap map[string]*registry.Service
+}
+
 var (
 	etcdRegistry = &EtcdRegistry{
 		serviceChan:        make(chan *registry.Service, MaxServiceNum),
@@ -39,6 +48,12 @@ var (
 )
 
 func init() {
+	//先把数据存到缓存中
+	allServiceInfo := &AllServiceInfo{
+		serviceMap: make(map[string]*registry.Service, MaxServiceNum),
+	}
+	etcdRegistry.value.Store(allServiceInfo)
+
 	//注册服务
 	registry.RegisterPlugin(etcdRegistry)
 	go etcdRegistry.run()
@@ -70,6 +85,7 @@ func (e *EtcdRegistry) Init(ctx context.Context, opts ...registry.Option) (err e
 func (e *EtcdRegistry) Register(ctx context.Context, service *registry.Service) (err error) {
 	select {
 	case e.serviceChan <- service:
+		fmt.Println("把service放到chan中:", service)
 	default:
 		err = fmt.Errorf("register chan is full")
 		return
@@ -87,6 +103,7 @@ func (e *EtcdRegistry) run() {
 		select {
 		//从chan中读取数据
 		case service := <-e.serviceChan:
+			fmt.Println("run中的chan：", service)
 			registryService, ok := e.registryServiceMap[service.Name]
 			//说明存在
 			if ok {
@@ -171,4 +188,76 @@ func (e *EtcdRegistry) registerService(registryService *RegistryService) {
 func (e *EtcdRegistry) serviceNodePath(service *registry.Service) string {
 	nodeIp := fmt.Sprintf("%s:%d", service.Nodes[0].IP, service.Nodes[0].Port)
 	return path.Join(e.options.RegistryPath, service.Name, nodeIp)
+}
+
+func (e *EtcdRegistry) servicePath(name string) string {
+	return path.Join(e.options.RegistryPath, name)
+}
+
+//服务发现
+func (e *EtcdRegistry) GetService(ctx context.Context, name string) (service *registry.Service, err error) {
+	fmt.Println("进入服务发现")
+	//先从缓存中读取
+	service, ok := e.getServiceFromCache(ctx, name)
+	if !ok {
+		return
+	}
+
+	//加上锁，一次只有一个请求进入
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	//从缓存中读取，如果有数据，直接返回数据
+	service, ok = e.getServiceFromCache(ctx, name)
+	if ok {
+		return
+	}
+	fmt.Println("从etcd中取数据")
+	//缓存中没有数据，从etcd中读取
+	key := e.servicePath(name)
+	resp, err := e.client.Get(context.TODO(), key, clientv3.WithPrefix())
+	if err != nil {
+		return
+	}
+
+	service = &registry.Service{
+		Name: name,
+	}
+
+	//将从etcd中读取的数据放到service里
+	for _, kv := range resp.Kvs {
+
+		fmt.Sprintf("version:%d,key:%s,value:%s\n", kv.Version, kv.Key, kv.Value)
+		value := kv.Value
+		var tmpService registry.Service
+		err = json.Unmarshal(value, &tmpService)
+		if err != nil {
+			return
+		}
+
+		//将etcd中node节点数据append进service
+		for _, node := range tmpService.Nodes {
+			service.Nodes = append(service.Nodes, node)
+		}
+	}
+
+	//从缓存中加载数据
+	allServiceInfoOld := e.value.Load().(*AllServiceInfo)
+	var allServiceNew = &AllServiceInfo{
+		serviceMap: make(map[string]*registry.Service, MaxServiceNum),
+	}
+
+	for key, val := range allServiceInfoOld.serviceMap {
+		allServiceNew.serviceMap[key] = val
+	}
+
+	allServiceNew.serviceMap[name] = service
+	e.value.Store(allServiceNew)
+	return
+}
+
+//从缓存中获取数据
+func (e *EtcdRegistry) getServiceFromCache(ctx context.Context, name string) (service *registry.Service, ok bool) {
+	allServiceInfo := e.value.Load().(*AllServiceInfo)
+	service, ok = allServiceInfo.serviceMap[name]
+	return
 }

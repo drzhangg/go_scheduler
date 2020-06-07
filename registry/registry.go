@@ -12,4 +12,7 @@ type Registry interface {
 	Register(ctx context.Context, service *Service) (err error)
 	//取消服务注册
 	Unregister(ctx context.Context, service *Service) (err error)
+
+	//服务发现
+	GetService(ctx context.Context, name string) (service *Service, err error)
 }

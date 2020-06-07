@@ -17,6 +17,7 @@ func TestRegister(t *testing.T) {
 	service := &registry.Service{
 		Name: "comment_service",
 	}
+	fmt.Println("service:", service)
 
 	service.Nodes = append(service.Nodes, &registry.Node{
 		IP:   "127.0.0.1",
@@ -31,6 +32,13 @@ func TestRegister(t *testing.T) {
 	}
 
 	for {
+
+		service, err := registryInst.GetService(context.TODO(), "comment_service")
+		if err != nil {
+			fmt.Errorf("GetService err:%v", err)
+			return
+		}
+		fmt.Println("service:", service)
 		time.Sleep(1 * time.Second)
 	}
 }
