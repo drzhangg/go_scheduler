@@ -38,15 +38,15 @@ func TestRegister(t *testing.T) {
 
 		service, err := registryInst.GetService(context.TODO(), "comment_service")
 		if err != nil {
-			fmt.Errorf("GetService err:%v", err)
+			t.Errorf("get service failed, err:%v", err)
 			return
 		}
-		fmt.Println("服务发现service:", service)
 
 		for _, node := range service.Nodes {
 			fmt.Printf("service:%s, node:%#v\n", service.Name, node)
 		}
-		time.Sleep(5 * time.Second)
+		//fmt.Println("\n\n")
+		time.Sleep(time.Second * 5)
 	}
 
 }

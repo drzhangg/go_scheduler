@@ -99,7 +99,7 @@ func (e *EtcdRegistry) Unregister(ctx context.Context, service *registry.Service
 
 //这个方法不停的从chan中读取数据，将数据通过map形式进行存储
 func (e *EtcdRegistry) run() {
-	ticker := time.NewTicker(MaxSyncServiceInterval)
+	//ticker := time.NewTicker(MaxSyncServiceInterval)
 	for {
 		select {
 		//从chan中读取数据
@@ -122,9 +122,9 @@ func (e *EtcdRegistry) run() {
 				service: service,
 			}
 			e.registryServiceMap[service.Name] = registryService
-		case <-ticker.C:
-			fmt.Println("进入ticker----")
-			e.syncServiceFromEtcd()
+		//case <-ticker.C:
+		//	fmt.Println("进入ticker----")
+		//e.syncServiceFromEtcd()
 		default:
 			//
 			e.registerOrKeepAlive()
@@ -224,6 +224,7 @@ func (e *EtcdRegistry) GetService(ctx context.Context, name string) (service *re
 	if err != nil {
 		return
 	}
+	fmt.Println("Getservice 里：", resp)
 
 	service = &registry.Service{
 		Name: name,
@@ -257,6 +258,7 @@ func (e *EtcdRegistry) GetService(ctx context.Context, name string) (service *re
 	}
 
 	allServiceNew.serviceMap[name] = service
+	//将etcd中读取的数据放到缓存中
 	e.value.Store(allServiceNew)
 	return
 }
