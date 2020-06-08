@@ -11,5 +11,5 @@ type Node struct {
 	Id     string `json:"id"`
 	IP     string `json:"ip"`
 	Port   int    `json:"port"`
-	Weight int    `json:"weight"`
+	Weight int    `json:"weight"` //负载均衡权重
 }

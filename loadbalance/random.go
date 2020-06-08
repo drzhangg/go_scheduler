@@ -19,7 +19,26 @@ func (r *RandomBalance) Select(ctx context.Context, nodes []*registry.Node) (nod
 		return
 	}
 
-	index := rand.Intn(len(nodes))
-	node = nodes[index]
+	//加权随机算法
+	var totalWeight int
+	for _, val := range nodes {
+		totalWeight += val.Weight
+	}
+
+	curWeight := rand.Intn(totalWeight)
+	curIndex := -1
+	for index, node := range nodes {
+		curWeight -= node.Weight
+		if curWeight < 0 {
+			curIndex = index
+			break
+		}
+	}
+
+	if curIndex == -1 {
+		return
+	}
+
+	node = nodes[curIndex]
 	return
 }

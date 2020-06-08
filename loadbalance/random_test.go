@@ -11,11 +11,15 @@ func TestRandom(t *testing.T) {
 	balance := &RandomBalance{}
 	var nodes []*registry.Node
 
-	for i := 0; i < 8; i++ {
+	var weights = [3]int{50, 100, 150}
+
+	for i := 0; i < 4; i++ {
 		node := &registry.Node{
-			IP:   fmt.Sprintf("127.0.0.%d", i),
-			Port: 8080,
+			IP:     fmt.Sprintf("127.0.0.%d", i),
+			Port:   8080,
+			Weight: weights[i%3],
 		}
+		fmt.Printf("node:%#v\n", node)
 		nodes = append(nodes, node)
 	}
 
